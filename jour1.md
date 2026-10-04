@@ -24,7 +24,7 @@ int main() {
 - `std::cout` affiche du texte ; `<<` envoie une valeur vers ce flux.
 - `\n` est un saut de ligne.
 - `return 0` indique une fin normale du programme.
-- 
+  
 ### Créer le premier projet
 
 1. Ouvrir **Visual Studio 2022**, puis **Créer un nouveau projet**.
