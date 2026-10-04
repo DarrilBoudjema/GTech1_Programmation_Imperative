@@ -1,7 +1,5 @@
 # Jour 1 — Syntaxe C++ et tableaux
 
-**Durée : 4 heures.** **Environnement : Windows, Visual Studio 2022, MSVC, C++17, Debug x64.** Niveau : débutant ayant déjà rencontré variables, conditions et boucles. Ce support fait partie d'un parcours de 16 heures.
-
 ## Objectifs
 
 À la fin de la journée, tu dois pouvoir écrire et compiler un programme, utiliser les types fondamentaux, découper un traitement en fonctions et parcourir un tableau de taille fixe.
