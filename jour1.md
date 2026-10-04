@@ -236,7 +236,7 @@ Le premier indice choisit la ligne ; le second choisit l'élément de cette lign
 
 ## Exercices pratiques
 
-### Exercice 1 — Calculatrice (30 min)
+### Exercice 1 — Calculatrice
 
 Demander deux `double`. Afficher somme, différence, produit et quotient. Si le deuxième nombre vaut zéro, afficher un message à la place du quotient.
 
@@ -246,7 +246,7 @@ Demander deux `double`. Afficher somme, différence, produit et quotient. Si le 
 
 **Critères :** variables initialisées, saisie correcte, aucune division par zéro.
 
-### Exercice 2 — Boucles et validation (30 min)
+### Exercice 2 — Boucles et validation
 
 1. Demander un entier `n` entre 1 et 100 ; recommencer s'il est hors intervalle.
 2. Afficher les entiers de 1 à `n`.
@@ -255,7 +255,7 @@ Demander deux `double`. Afficher somme, différence, produit et quotient. Si le 
 
 **Tests :** pour `n = 5`, somme `15`, pairs `2 4`. Pour `n = 1`, somme `1`, aucun pair. Tester aussi `0` puis une valeur valide.
 
-### Exercice 3 — Fonctions (30 min)
+### Exercice 3 — Fonctions
 
 Écrire et appeler :
 
@@ -269,7 +269,7 @@ Utiliser une variable temporaire dans `echanger`. Tester `carre(4)`, `estPair(7)
 
 **Attendu :** `16`, `false`, puis `a = 8` et `b = 3`. Expliquer pourquoi l'échange demande ici des références.
 
-### Exercice 4 — Statistiques de notes (30 min)
+### Exercice 4 — Statistiques de notes
 
 Saisir cinq notes entières entre 0 et 20 dans un tableau. Afficher les notes, leur moyenne, le minimum, le maximum et le nombre de notes au moins égales à 10.
 
@@ -293,16 +293,6 @@ Créer une grille `int grille[3][3]`. Saisir neuf nombres compris entre -100 et 
 **Bonus :** vérifier aussi la seconde diagonale et l'absence de doublons. Pour qualifier un carré magique normal d'ordre 3, vérifier en plus que les nombres sont exactement ceux de 1 à 9.
 
 **Réussite :** boucles imbriquées, indices valides, résultats corrects. Ne pas écrire neuf traitements presque identiques.
-
-## Autoévaluation
-
-- [ ] Je distingue `=` et `==`.
-- [ ] Je sais éviter une division entière involontaire.
-- [ ] Je sais expliquer le passage par valeur et par référence.
-- [ ] Je sais parcourir tous les éléments sans sortir du tableau.
-- [ ] Je peux expliquer chaque fonction de mon programme.
-
-**À retenir :** initialiser les variables, respecter les limites des tableaux et découper les traitements en fonctions.
 
 ## Documentation Microsoft
 
