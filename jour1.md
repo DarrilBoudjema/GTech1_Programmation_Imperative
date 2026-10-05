@@ -107,7 +107,7 @@ Quand les deux opérandes sont des entiers, la division est entière. `%` donne 
 |---|---|
 | Calcul | `+`, `-`, `*`, `/`, `%` |
 | Comparaison | `==`, `!=`, `<`, `>`, `<=`, `>=` |
-| Logique | `&&`, `||`, `!` |
+| Logique | `&&`, `\|\|`, `!` |
 | Affectation | `=`, `+=`, `-=`, `*=`, `/=` |
 | Incrémentation | `++`, `--` |
 
