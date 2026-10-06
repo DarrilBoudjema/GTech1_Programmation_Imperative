@@ -54,7 +54,35 @@ int main()
 	//int b = 8;
 	//echanger(a, b);
 	//std::cout << carre(4) << "\n" << estPair(7) << "\n" << a << ' ' << b;
+	
+	// EXERCICE 4
+	/*const int nombreNotes = 5;
+	int notes[nombreNotes] = {};
+	
+	for (int i = 0; i < nombreNotes; ++i) {
+		int note = -1;
+		while (note < 0 || note > 20) {
+			std::cin >> note;
+			notes[i] = note;
+		}
+	}
+	
+	int moyenne = 0;
+	int max = notes[0];
+	int min = notes[0];
+	int nombreSupDix = 0;
+	
+	for (int i = 0; i < nombreNotes; ++i) {
+		std::cout << notes[i] << " ";
+		if (max < notes[i]) max = notes[i];
+		if (min > notes[i]) min = notes[i];
+		if (notes[i] >= 10) nombreSupDix++;
+		moyenne += notes[i];
+	}
+	moyenne /= nombreNotes;
+	std::cout << "\n" << min << " " << max << " " << nombreSupDix << " " << moyenne;*/
 
+	
 	return 0;
 }
 
