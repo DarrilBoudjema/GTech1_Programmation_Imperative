@@ -1,5 +1,4 @@
-# Jour 3 — Pile, tas et allocation dynamique : cours détaillé
-
+# Jour 3 — Pile, tas et allocation dynamique
 ## Objectifs
 
 Distinguer portée et durée de vie, expliquer pile et tas, allouer et libérer un objet ou un tableau et identifier les principales erreurs mémoire. Découvrir ensuite les outils de gestion automatique du C++ moderne.
