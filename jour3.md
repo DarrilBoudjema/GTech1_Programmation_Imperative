@@ -580,7 +580,7 @@ delete valeurs;
 std::cout << valeurs[0];
 ```
 
-Identifier trois erreurs et proposer une correction : borne valide, `delete[]`, absence d'accès après destruction. Générer la correction et la tester avec AddressSanitizer. Utiliser ensuite une exécution Debug séparée avec le rapport CRT pour contrôler les fuites.
+Identifier trois erreurs et proposer une correction : borne valide, `delete[]`, absence d'accès après destruction. Utiliser ensuite une exécution Debug séparée avec le rapport CRT pour contrôler les fuites.
 
 Réécrire ensuite l'exercice 3 avec `std::vector<double>`. Expliquer quelles responsabilités disparaissent et lesquelles restent : validation des saisies et respect des indices restent nécessaires.
 
