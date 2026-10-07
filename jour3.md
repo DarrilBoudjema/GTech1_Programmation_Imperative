@@ -434,90 +434,7 @@ La copie doit avoir lieu **avant** la destruction de l'ancien tableau. Ne pas é
 
 Le tableau agrandi n'est pas forcément situé à la même adresse. Tous les pointeurs vers l'ancien tableau doivent être considérés comme invalides après sa destruction. Pour retrouver un élément, utiliser son indice dans le nouveau tableau si cet indice reste pertinent.
 
-## 6. Diagnostic mémoire sous Windows avec MSVC
-
-### A. Observer l'allocation dans le débogueur
-
-Poser un point d'arrêt après `new`, lancer avec `F5` et observer `nombre` et `*nombre` dans **Espion 1**. Avancer jusqu'à la libération. Après `delete`, ne plus évaluer `*nombre` : voir encore une ancienne valeur ne prouve pas que l'objet existe.
-
-Ouvrir **Déboguer → Fenêtres → Pile des appels** à un point d'arrêt dans une fonction pour voir la chaîne d'appels. Cette fenêtre décrit les appels actifs ; elle ne montre pas toutes les allocations du tas.
-
-### B. AddressSanitizer : accès invalides
-
-MSVC dans Visual Studio 2022 prend en charge **AddressSanitizer** (`/fsanitize=address`) pour détecter notamment les accès hors limites et les utilisations après libération.
-
-1. Si nécessaire, dans **Visual Studio Installer → Modifier → Composants individuels**, installer le composant C++ AddressSanitizer.
-2. Clic droit sur le projet → **Propriétés** ; sélectionner **Debug** et **x64**.
-3. Dans **C/C++ → Général**, activer **Enable Address Sanitizer / Activer AddressSanitizer** (`/fsanitize=address`).
-4. Vérifier les options incompatibles dans cette même configuration :
-
-| Page | Réglage compatible avec AddressSanitizer |
-|---|---|
-| C/C++ → Génération de code | Vérifications de base à l'exécution : valeur par défaut, sans `/RTC` |
-| C/C++ → Général | Format des informations de débogage : `/Zi`, plutôt que `/ZI` (Modifier & Continuer) |
-| Éditeur de liens → Général | Activer la liaison incrémentielle : **Non** (`/INCREMENTAL:NO`) |
-
-5. **Générer → Régénérer la solution**, puis exécuter avec `F5`.
-6. Lire le diagnostic et la ligne signalée. Corriger la cause et relancer.
-
-Si l'activation ajuste déjà ces options, vérifier simplement leurs valeurs. Les libellés peuvent varier selon la langue de Visual Studio. Ce parcours utilise le compilateur MSVC et n'utilise pas les commandes GCC des versions précédentes du cours.
-
-AddressSanitizer ne détecte pas toutes les erreurs possibles et ne remplace pas le raisonnement sur les durées de vie. Ne pas le considérer ici comme un détecteur de fuites ; utiliser le mode CRT ci-dessous pour les allocations du cours.
-
-### C. Bibliothèque CRT Debug : fuites mémoire
-
-Faire ce contrôle dans une exécution **Debug x64** séparée, avec AddressSanitizer désactivé et la bibliothèque runtime Debug habituelle (`/MDd`). Ajouter `<crtdbg.h>` et activer le rapport automatique au début de `main` :
-
-```cpp
-#include <iostream>
-#ifdef _DEBUG
-#include <crtdbg.h>
-#endif
-
-int main() {
-#ifdef _DEBUG
-    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-#endif
-
-    int* nombre = new int{42};
-    std::cout << *nombre << '\n';
-    delete nombre;
-    return 0;
-}
-```
-
-Lancer avec `F5`, puis ouvrir **Affichage → Sortie** et sélectionner **Débogage**. Le rapport automatique intervient à la sortie : il permet de rechercher des allocations CRT non libérées. Une absence de rapport ne prouve pas l'absence de toute erreur mémoire.
-
-Ce code utilise une extension propre à MSVC, protégée par `_DEBUG` ; les notions d'allocation du reste du cours sont du C++ standard. Ne pas appeler prématurément `_CrtDumpMemoryLeaks` alors que des objets légitimement vivants possèdent encore des allocations.
-
-### D. Une séance de diagnostic guidée
-
-**Débogueur, AddressSanitizer et rapport CRT ont des rôles différents.** Le premier aide à observer le chemin du programme, le deuxième signale de nombreux accès mémoire invalides, et le troisième aide à repérer des allocations CRT non libérées.
-
-Pour analyser une erreur, suivre cet ordre :
-
-1. Reproduire avec une petite entrée connue.
-2. Lire le type d'erreur et la ligne de l'accès, pas seulement le message final.
-3. Retrouver l'allocation ou le tableau concerné.
-4. Vérifier la taille et la durée de vie.
-5. Corriger le code, puis régénérer et relancer.
-
-Des messages tels que `heap-buffer-overflow` orientent vers un accès hors limites d'une allocation du tas ; `heap-use-after-free` vers un accès après libération. Le détail et la langue du diagnostic dépendent de la version des outils. AddressSanitizer peut interrompre le programme au premier problème rencontré : une erreur corrigée peut révéler la suivante.
-
-Pour une expérience encadrée, utiliser un projet de diagnostic séparé de la solution finale : commencer avec un programme correct, introduire une seule erreur connue, observer le rapport puis remettre la version correcte. Ne pas cumuler plusieurs erreurs, car la première peut empêcher de voir les suivantes.
-
-### E. Si Espion ou les rapports semblent absents
-
-- Lancer avec `F5`, puis s'arrêter à un point d'arrêt pour voir les fenêtres de débogage.
-- **Espion 1** : `Ctrl+Alt+W`, relâcher, puis `1`, avec le profil habituel.
-- Une expression peut être indisponible si la variable n'est pas dans la portée actuelle.
-- Ne pas utiliser `*p` si la cible n'existe plus ; enlever l'expression avant la destruction dans l'atelier.
-- Pour la CRT, sélectionner la sortie **Débogage**, exécuter en Debug et laisser le programme terminer normalement.
-- Pour AddressSanitizer, vérifier le projet de démarrage, la configuration utilisée et la régénération après changement des propriétés.
-
-**Trace de contrôle à remplir :** entrée testée, résultat attendu, résultat obtenu, diagnostic éventuel, correction apportée.
-
-## 7. Gestion automatique : RAII
+## 6. Gestion automatique : RAII
 
 Le principe **RAII** consiste à confier une ressource à un objet qui la libère à sa destruction. Cela évite d'oublier une libération lors d'un retour anticipé ou d'une exception.
 
@@ -545,13 +462,13 @@ std::cout << *nombre << '\n';
 
 L'objet pointé est détruit automatiquement avec son propriétaire. Ne pas appeler `delete` sur cette allocation. `unique_ptr` n'est pas copiable ; le transfert de propriété existe, mais dépasse les objectifs obligatoires du jour.
 
-### 7.1 Pourquoi un objet propriétaire change le problème
+### 6.1 Pourquoi un objet propriétaire change le problème
 
 Un pointeur brut ne libère pas sa cible à sa destruction. Un objet propriétaire comme `std::unique_ptr` a, lui, un destructeur qui effectue le nettoyage. Une sortie de bloc normale, un `return` ou une exception qui déroule la pile déclenche la destruction des propriétaires locaux construits.
 
 Ce mécanisme ne repose pas sur l'appel manuel d'un « ramasse-miettes ». La fin de vie des propriétaires locaux ordinaires dépend de la sortie de leur portée.
 
-### 7.2 `std::vector` pas à pas
+### 6.2 `std::vector` pas à pas
 
 ```cpp
 #include <iostream>
@@ -585,7 +502,7 @@ Ne pas écrire `valeurs[3] = 40` sur un vecteur de taille 3, même s'il a une ca
 
 La stratégie précise d'augmentation de capacité dépend de l'implémentation. Ne pas supposer que le vecteur double toujours sa capacité. Pour transmettre un vecteur en lecture, utiliser `const std::vector<int>&` ; pour le modifier, `std::vector<int>&`.
 
-### 7.3 `std::unique_ptr` pas à pas
+### 6.3 `std::unique_ptr` pas à pas
 
 ```cpp
 #include <iostream>
@@ -610,7 +527,7 @@ Résultat : un seul affichage de `42`, et les deux allocations sont prises en ch
 
 `nombre.get()` fournit un pointeur brut observateur. Il ne transfère pas la propriété et ne prolonge pas la vie de l'entier. Ne pas appeler `delete` sur ce pointeur. Copier le propriétaire est interdit ; un transfert explicite peut utiliser `std::move`, notion facultative aujourd'hui.
 
-### 7.4 Quel outil choisir ?
+### 6.4 Quel outil choisir ?
 
 | Besoin | Choix habituel |
 |---|---|
