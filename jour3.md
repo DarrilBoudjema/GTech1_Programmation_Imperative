@@ -1,4 +1,4 @@
-# Jour 3 — Pile, tas et allocation dynamique
+# Jour 3 — Pile, tas et allocation dynamique : cours détaillé
 
 ## Objectifs
 
@@ -27,10 +27,63 @@ int* p = nullptr;
 {
     int nombre = 42;
     p = &nombre;
-}
+} // nombre n'existe plus.
+// p est pendant : ne pas accéder à *p.
 ```
 
 De même, renvoyer l'adresse d'une variable locale d'une fonction produit un pointeur qui ne permet plus d'accéder à un objet vivant après le retour.
+
+### 1.1 Trois notions à ne pas confondre
+
+| Notion | Question | Exemple |
+|---|---|---|
+| Nom et portée | Où puis-je écrire ce nom ? | `temporaire` est visible dans son bloc |
+| Objet et durée de vie | Cet objet existe-t-il encore ? | L'entier local disparaît à la sortie du bloc |
+| Pointeur et validité | Puis-je accéder à sa cible maintenant ? | Un pointeur peut rester dans la portée alors que sa cible est détruite |
+
+Dans le premier exemple, `nombre` existe pendant l'exécution de la fonction et `temporaire` seulement pendant le bloc intérieur. Lorsqu'un bloc se termine, les objets locaux ordinaires sont détruits dans l'ordre inverse de leur construction. Un entier n'a pas de travail de nettoyage visible ; un `std::string`, par exemple, peut devoir libérer une ressource.
+
+### 1.2 Un programme complet pour observer les blocs
+
+```cpp
+#include <iostream>
+
+int main() {
+    int exterieur = 10;
+
+    {
+        int interieur = 20;
+        int* observateur = &exterieur;
+
+        *observateur += interieur;
+        std::cout << "Dans le bloc : " << exterieur << '\n';
+    }
+
+    std::cout << "Apres le bloc : " << exterieur << '\n';
+    return 0;
+}
+```
+
+Résultat : `30` dans les deux affichages. L'objet `exterieur` vit plus longtemps que `observateur`. La destruction du pointeur local ne détruit pas l'entier extérieur. Les noms `interieur` et `observateur` ne sont plus disponibles après le bloc.
+
+Dans Visual Studio, poser un point d'arrêt sur `*observateur += interieur`, avancer avec `F10`, puis regarder **Variables locales** avant et après la sortie du bloc.
+
+### 1.3 Pourquoi une adresse locale ne peut pas être conservée
+
+Si une fonction crée un entier local puis renvoie son adresse, l'appelant reçoit une adresse vers un objet dont la vie vient de se terminer. L'adresse peut sembler inchangée et les octets peuvent encore contenir l'ancienne valeur : aucun de ces faits n'autorise la lecture.
+
+Pour renvoyer un simple résultat numérique, utiliser une valeur :
+
+```cpp
+int creerNombre() {
+    int nombre = 42;
+    return nombre;
+}
+```
+
+L'appelant reçoit le résultat `42`, pas un accès à l'objet local détruit. L'allocation dynamique n'est pas nécessaire pour renvoyer un entier.
+
+**Question flash :** un pointeur prolonge-t-il automatiquement la durée de vie d'une variable locale ? **Non.** Il désigne l'objet ; il ne le conserve pas vivant.
 
 ## 2. La pile et le tas
 
@@ -51,6 +104,58 @@ Dans ce bloc, `local` et le pointeur `p` ont une durée de stockage automatique.
 | Libération explicite nécessaire ? | Non | Oui pour une allocation détenue par un pointeur brut |
 
 Toutes les données ne relèvent pas uniquement de ces deux catégories : il existe notamment une durée de stockage statique, par exemple pour certaines variables globales. Aujourd'hui, on se concentre sur stockage automatique et dynamique.
+
+### 2.1 La pile pendant les appels de fonctions
+
+Lorsqu'une fonction en appelle une autre, l'implémentation conserve les informations nécessaires pour revenir à l'appelante. On parle souvent de cadre d'appel : il comprend les informations de retour et généralement une partie des données locales.
+
+```cpp
+#include <iostream>
+
+int doublerValeur(int valeur) {
+    int resultat = valeur * 2;
+    return resultat;
+}
+
+int main() {
+    int nombre = 21;
+    int resultat = doublerValeur(nombre);
+    std::cout << resultat << '\n';
+    return 0;
+}
+```
+
+Pendant `doublerValeur`, les objets de `main` existent encore. Le paramètre `valeur` est une copie de `nombre`. Le `resultat` local de la fonction et celui de `main` sont deux objets différents, même s'ils portent le même nom.
+
+Poser un point d'arrêt sur `return resultat` et ouvrir **Pile des appels**. On doit retrouver l'appel de `doublerValeur` depuis `main`. Les noms exacts des cadres supplémentaires dépendent du runtime et des symboles de débogage.
+
+Les gros tableaux locaux et la récursion profonde peuvent épuiser la pile du thread. Ne pas expérimenter avec des tailles gigantesques : la taille de pile est limitée et dépend de la configuration du programme.
+
+### 2.2 Le tas et la durée de vie indépendante du bloc
+
+Une allocation dynamique est utile lorsque la taille n'est connue qu'à l'exécution ou lorsqu'un objet doit survivre au bloc qui le crée. Elle a aussi un coût : recherche de stockage, gestion de l'allocation, puis libération. L'absence de variable locale massive ne signifie pas une mémoire illimitée : le tas dépend des ressources et des limites du processus.
+
+```cpp
+int* creerEntierDynamique() {
+    int* local = new int{42};
+    return local;
+}
+```
+
+À la sortie de cette fonction, le pointeur local est détruit, mais l'entier dynamique reste vivant. Une copie de son adresse a été renvoyée. Le contrat doit préciser que l'appelant devient propriétaire et doit libérer l'entier. En C++ moderne, on exprime plutôt ce transfert avec un propriétaire automatique tel que `std::unique_ptr`.
+
+### 2.3 Où se trouvent le pointeur et la cible ?
+
+Pour `int* p = new int{42};`, il y a **deux objets** :
+
+| Objet | Contenu | Durée de stockage | Fin de vie |
+|---|---|---|---|
+| `p` | Une adresse | Automatique dans cet exemple local | Sortie du bloc |
+| L'entier alloué | `42` | Dynamique | `delete p`, tant que `p` contient sa bonne adresse |
+
+`&p` est l'adresse du pointeur lui-même. `p` contient l'adresse de l'entier alloué. `*p` permet d'accéder à cet entier. Le fait qu'un pointeur soit local ne dit donc pas où se trouve sa cible.
+
+**À retenir :** utiliser la pile pour des objets locaux ordinaires et des propriétaires automatiques ; utiliser les allocations dynamiques lorsque nécessaire, en organisant leur propriété.
 
 ## 3. Allouer et libérer un objet
 
@@ -81,6 +186,68 @@ observateur = nullptr;
 
 Mettre un pointeur à `nullptr` ne met pas les autres copies à jour. Ne pas libérer l'objet une seconde fois via `observateur`.
 
+### 3.1 Décomposer `new int{42}`
+
+L'expression réalise, dans le cas ordinaire, les étapes suivantes :
+
+1. Obtenir assez de stockage pour un entier, correctement aligné.
+2. Créer et initialiser l'entier avec `42` dans ce stockage.
+3. Produire un pointeur de type `int*` vers cet objet.
+4. Affecter cette adresse à la variable pointeur.
+
+L'objet dynamique n'a pas besoin d'un nom de variable propre : on y accède ici à travers le pointeur. `new` est un opérateur C++, pas simplement une déclaration de variable.
+
+| Expression | État initial de l'entier |
+|---|---|
+| `new int{42}` | Valeur `42` |
+| `new int{}` | Valeur `0` |
+| `new int` | Valeur indéterminée : affecter avant lecture |
+
+### 3.2 Décomposer `delete p`
+
+`delete p` détruit l'objet alloué et rend son stockage disponible pour une utilisation ultérieure. Il ne modifie pas automatiquement la valeur de `p`. Le pointeur contient donc encore une adresse qui ne permet plus d'accéder à l'ancien objet.
+
+L'instruction suivante, `p = nullptr`, modifie le pointeur. Elle ne libère rien par elle-même. L'ordre est essentiel : mettre l'unique pointeur propriétaire à `nullptr` **avant** la libération perdrait l'adresse nécessaire.
+
+`delete nullptr` et `delete[] nullptr` sont autorisés et n'ont pas d'effet. Cela ne rend pas autorisée une seconde libération via un pointeur encore non nul et pendant.
+
+### 3.3 Exemple complet et trace
+
+```cpp
+#include <iostream>
+
+int main() {
+    int* proprietaire = new int{42};
+    int* observateur = proprietaire;
+
+    *observateur += 8;
+    std::cout << "Valeur : " << *proprietaire << '\n';
+
+    delete proprietaire;
+    proprietaire = nullptr;
+    observateur = nullptr;
+    return 0;
+}
+```
+
+Résultat : `Valeur : 50`.
+
+| Étape | Objet dynamique | Propriétaire | Observateur |
+|---|---|---|---|
+| Après `new` | Vivant, valeur 42 | Le désigne | Pas encore créé |
+| Après copie du pointeur | Toujours le même objet | Le désigne | Le désigne aussi |
+| Après `*observateur += 8` | Vivant, valeur 50 | Le désigne | Le désigne |
+| Après `delete` | Détruit | Pendant | Pendant |
+| Après les deux affectations | Détruit | Nul | Nul |
+
+Copier un pointeur ne copie pas son objet. Deux pointeurs peuvent désigner le même entier, mais un seul doit porter la responsabilité de la libération dans ce programme.
+
+### 3.4 Échec d'allocation et exceptions
+
+Le `new` ordinaire peut lever `std::bad_alloc` si le stockage ne peut pas être obtenu. Une exception interrompt le chemin normal ; elle peut être interceptée avec `try` et `catch`. Il ne faut donc pas supposer que le code suivant `new` sera toujours atteint.
+
+Dans cette séance, les tailles sont petites et validées. La gestion complète des exceptions n'est pas un objectif obligatoire, mais elle explique pourquoi la gestion automatique est préférable : un propriétaire RAII se détruit aussi lorsqu'une exception fait quitter sa portée.
+
 ## 4. Erreurs mémoire courantes
 
 | Erreur | Cause | Prévention |
@@ -99,6 +266,54 @@ p = nullptr; // Allocation perdue : exemple incorrect.
 ```
 
 Ne pas utiliser `delete` sur l'adresse d'une variable locale. Ne pas mélanger les allocations C++ avec `malloc`/`free`.
+
+### 4.1 Une fuite ne fait pas forcément planter
+
+Si une fonction alloue à chaque appel et ne libère jamais, les objets oubliés s'accumulent. Le programme peut donner les bons résultats tout en consommant de plus en plus de mémoire. La fin du processus permet normalement au système de récupérer son espace mémoire, mais cela ne corrige pas les fuites pendant son fonctionnement.
+
+Un retour anticipé peut créer une fuite :
+
+```cpp
+// Exemple a analyser : ne pas conserver cette version.
+void traitement(bool abandonner) {
+    int* p = new int{42};
+    if (abandonner) {
+        return; // delete n'est pas execute.
+    }
+    delete p;
+}
+```
+
+Solution manuelle : éviter un retour qui oublie le nettoyage, ou libérer avant chaque sortie. Solution plus robuste : confier l'allocation à un propriétaire automatique.
+
+### 4.2 Utilisation après libération
+
+Après destruction, il est incorrect de lire **ou** écrire l'ancien objet. Un allocateur peut réutiliser sa zone pour un autre objet ; une ancienne écriture pourrait alors modifier des données sans rapport.
+
+La règle s'applique à tous les alias. Mettre un seul pointeur à zéro ne sécurise pas les autres. Lorsqu'un groupe d'objets est détruit ou remplacé, identifier les pointeurs qui le désignaient et cesser de les utiliser.
+
+### 4.3 Double libération et libération d'un objet local
+
+Deux pointeurs égaux ne représentent pas deux allocations. Libérer par chacun produirait une double libération. De même, l'adresse d'une variable locale n'est pas issue de `new` : la transmettre à `delete` est incorrect.
+
+Avant un `delete`, se demander : **cette adresse provient-elle de l'allocation correspondante, est-ce le début de cette allocation, et suis-je son propriétaire ?** Un pointeur vers un élément intérieur d'un tableau ne doit pas servir à libérer ce tableau.
+
+### 4.4 Hors limites et comportement indéfini
+
+Pour trois éléments, seuls les indices 0, 1 et 2 sont valides. Une lecture à l'indice 3 n'est pas « une quatrième valeur vide ». Elle ne désigne aucun élément de ce tableau.
+
+Un comportement indéfini signifie que le langage ne garantit plus le résultat de l'exécution concernée. Il ne faut pas conclure « c'est bon, ça ne plante pas ». Corriger l'erreur même si elle semble sans effet.
+
+### 4.5 Méthode de relecture d'un programme
+
+1. Repérer toutes les allocations.
+2. Pour chacune, nommer son propriétaire.
+3. Repérer la libération correspondante.
+4. Vérifier les retours anticipés et les branches.
+5. Vérifier qu'aucun observateur n'est utilisé après destruction.
+6. Vérifier chaque indice et chaque taille.
+
+Cette relecture complète les outils : elle explique le problème et sa correction.
 
 ## 5. Tableaux dynamiques
 
@@ -149,17 +364,158 @@ valeurs = nouveau;
 
 Les pointeurs qui désignaient des éléments de l'ancien tableau deviennent invalides après sa libération.
 
-## 6. Diagnostic
+### 5.1 Pourquoi `int valeurs[taille]` ne convient pas ici
 
-Avec GCC ou Clang lorsque ces outils sont disponibles :
+Si `taille` est saisie pendant l'exécution, elle n'est pas une expression constante à la compilation. Un tableau intégré déclaré avec cette taille n'est pas du C++ standard ; MSVC ne fournit pas cette construction pour le cours. Utiliser une allocation dynamique ou `std::vector`.
 
-```bash
-g++ -std=c++17 -Wall -Wextra -pedantic -g \
-    -fsanitize=address,undefined main.cpp -o programme
-./programme
+Avec `new int[taille]{}`, les éléments sont contigus et initialisés à zéro. Si le tableau contient quatre entiers, il comporte exactement les éléments d'indices 0 à 3. `valeurs + taille` forme l'adresse juste après la fin : elle peut servir de borne de parcours, pas être déréférencée.
+
+### 5.2 Programme complet : taille saisie et nettoyage
+
+```cpp
+#include <iostream>
+
+int main() {
+    int taille = 0;
+    std::cout << "Taille entre 1 et 100 : ";
+    if (!(std::cin >> taille) || taille < 1 || taille > 100) {
+        std::cout << "Taille invalide\n";
+        return 1;
+    }
+
+    int* valeurs = new int[taille]{};
+
+    for (int i = 0; i < taille; ++i) {
+        valeurs[i] = (i + 1) * 10;
+    }
+    for (int i = 0; i < taille; ++i) {
+        std::cout << valeurs[i] << ' ';
+    }
+    std::cout << '\n';
+
+    delete[] valeurs;
+    valeurs = nullptr;
+    return 0;
+}
 ```
 
-AddressSanitizer et UndefinedBehaviorSanitizer peuvent détecter de nombreux accès invalides ; la détection des fuites dépend aussi de la plateforme. Ils ne constituent pas une preuve que toutes les erreurs sont absentes. Ne fais pas d'accès volontairement invalide dans le programme final.
+Pour une taille de 4 : `10 20 30 40`. La validation se fait avant l'allocation. Aucune sortie intermédiaire ne perd le tableau dans cet exemple.
+
+### 5.3 Pourquoi `sizeof` ne retrouve pas la taille
+
+```cpp
+int fixe[4] = {};
+int* dynamique = new int[4]{};
+// sizeof(fixe) mesure le tableau entier.
+// sizeof(dynamique) mesure uniquement la variable pointeur.
+delete[] dynamique;
+```
+
+Un pointeur brut n'est pas accompagné, dans son interface C++, d'un nombre d'éléments consultable. Les détails internes d'un allocateur ne constituent pas un moyen portable de retrouver la taille. Conserver un couple cohérent **pointeur + taille**.
+
+### 5.4 Pourquoi `delete[]` est nécessaire
+
+Le langage exige que la forme de libération corresponde à la forme d'allocation. C'est vrai aussi pour les tableaux d'entiers, même si leur destruction est simple. Pour des tableaux de structures avec des membres gérant des ressources, chaque élément doit également être correctement détruit.
+
+`delete[]` ne vide pas un tableau pour pouvoir le réutiliser : il détruit le tableau. Pour conserver le tableau et remettre ses éléments à zéro, parcourir les éléments et leur affecter zéro.
+
+### 5.5 Agrandir sans perdre les données
+
+Pour passer de `{10, 20, 30}` à quatre emplacements :
+
+| Étape | Ancien tableau | Nouveau tableau |
+|---|---|---|
+| Allocation | `{10,20,30}` vivant | `{0,0,0,0}` vivant |
+| Copie | Toujours vivant | `{10,20,30,0}` |
+| Libération de l'ancien | Détruit | Toujours vivant |
+| Mise à jour du propriétaire | Ancienne adresse abandonnée | Adresse conservée |
+
+La copie doit avoir lieu **avant** la destruction de l'ancien tableau. Ne pas écrire `valeurs = new int[...]` directement sur le seul pointeur propriétaire sans avoir sauvegardé et traité l'ancienne allocation.
+
+Le tableau agrandi n'est pas forcément situé à la même adresse. Tous les pointeurs vers l'ancien tableau doivent être considérés comme invalides après sa destruction. Pour retrouver un élément, utiliser son indice dans le nouveau tableau si cet indice reste pertinent.
+
+## 6. Diagnostic mémoire sous Windows avec MSVC
+
+### A. Observer l'allocation dans le débogueur
+
+Poser un point d'arrêt après `new`, lancer avec `F5` et observer `nombre` et `*nombre` dans **Espion 1**. Avancer jusqu'à la libération. Après `delete`, ne plus évaluer `*nombre` : voir encore une ancienne valeur ne prouve pas que l'objet existe.
+
+Ouvrir **Déboguer → Fenêtres → Pile des appels** à un point d'arrêt dans une fonction pour voir la chaîne d'appels. Cette fenêtre décrit les appels actifs ; elle ne montre pas toutes les allocations du tas.
+
+### B. AddressSanitizer : accès invalides
+
+MSVC dans Visual Studio 2022 prend en charge **AddressSanitizer** (`/fsanitize=address`) pour détecter notamment les accès hors limites et les utilisations après libération.
+
+1. Si nécessaire, dans **Visual Studio Installer → Modifier → Composants individuels**, installer le composant C++ AddressSanitizer.
+2. Clic droit sur le projet → **Propriétés** ; sélectionner **Debug** et **x64**.
+3. Dans **C/C++ → Général**, activer **Enable Address Sanitizer / Activer AddressSanitizer** (`/fsanitize=address`).
+4. Vérifier les options incompatibles dans cette même configuration :
+
+| Page | Réglage compatible avec AddressSanitizer |
+|---|---|
+| C/C++ → Génération de code | Vérifications de base à l'exécution : valeur par défaut, sans `/RTC` |
+| C/C++ → Général | Format des informations de débogage : `/Zi`, plutôt que `/ZI` (Modifier & Continuer) |
+| Éditeur de liens → Général | Activer la liaison incrémentielle : **Non** (`/INCREMENTAL:NO`) |
+
+5. **Générer → Régénérer la solution**, puis exécuter avec `F5`.
+6. Lire le diagnostic et la ligne signalée. Corriger la cause et relancer.
+
+Si l'activation ajuste déjà ces options, vérifier simplement leurs valeurs. Les libellés peuvent varier selon la langue de Visual Studio. Ce parcours utilise le compilateur MSVC et n'utilise pas les commandes GCC des versions précédentes du cours.
+
+AddressSanitizer ne détecte pas toutes les erreurs possibles et ne remplace pas le raisonnement sur les durées de vie. Ne pas le considérer ici comme un détecteur de fuites ; utiliser le mode CRT ci-dessous pour les allocations du cours.
+
+### C. Bibliothèque CRT Debug : fuites mémoire
+
+Faire ce contrôle dans une exécution **Debug x64** séparée, avec AddressSanitizer désactivé et la bibliothèque runtime Debug habituelle (`/MDd`). Ajouter `<crtdbg.h>` et activer le rapport automatique au début de `main` :
+
+```cpp
+#include <iostream>
+#ifdef _DEBUG
+#include <crtdbg.h>
+#endif
+
+int main() {
+#ifdef _DEBUG
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
+    int* nombre = new int{42};
+    std::cout << *nombre << '\n';
+    delete nombre;
+    return 0;
+}
+```
+
+Lancer avec `F5`, puis ouvrir **Affichage → Sortie** et sélectionner **Débogage**. Le rapport automatique intervient à la sortie : il permet de rechercher des allocations CRT non libérées. Une absence de rapport ne prouve pas l'absence de toute erreur mémoire.
+
+Ce code utilise une extension propre à MSVC, protégée par `_DEBUG` ; les notions d'allocation du reste du cours sont du C++ standard. Ne pas appeler prématurément `_CrtDumpMemoryLeaks` alors que des objets légitimement vivants possèdent encore des allocations.
+
+### D. Une séance de diagnostic guidée
+
+**Débogueur, AddressSanitizer et rapport CRT ont des rôles différents.** Le premier aide à observer le chemin du programme, le deuxième signale de nombreux accès mémoire invalides, et le troisième aide à repérer des allocations CRT non libérées.
+
+Pour analyser une erreur, suivre cet ordre :
+
+1. Reproduire avec une petite entrée connue.
+2. Lire le type d'erreur et la ligne de l'accès, pas seulement le message final.
+3. Retrouver l'allocation ou le tableau concerné.
+4. Vérifier la taille et la durée de vie.
+5. Corriger le code, puis régénérer et relancer.
+
+Des messages tels que `heap-buffer-overflow` orientent vers un accès hors limites d'une allocation du tas ; `heap-use-after-free` vers un accès après libération. Le détail et la langue du diagnostic dépendent de la version des outils. AddressSanitizer peut interrompre le programme au premier problème rencontré : une erreur corrigée peut révéler la suivante.
+
+Pour une expérience encadrée, utiliser un projet de diagnostic séparé de la solution finale : commencer avec un programme correct, introduire une seule erreur connue, observer le rapport puis remettre la version correcte. Ne pas cumuler plusieurs erreurs, car la première peut empêcher de voir les suivantes.
+
+### E. Si Espion ou les rapports semblent absents
+
+- Lancer avec `F5`, puis s'arrêter à un point d'arrêt pour voir les fenêtres de débogage.
+- **Espion 1** : `Ctrl+Alt+W`, relâcher, puis `1`, avec le profil habituel.
+- Une expression peut être indisponible si la variable n'est pas dans la portée actuelle.
+- Ne pas utiliser `*p` si la cible n'existe plus ; enlever l'expression avant la destruction dans l'atelier.
+- Pour la CRT, sélectionner la sortie **Débogage**, exécuter en Debug et laisser le programme terminer normalement.
+- Pour AddressSanitizer, vérifier le projet de démarrage, la configuration utilisée et la régénération après changement des propriétés.
+
+**Trace de contrôle à remplir :** entrée testée, résultat attendu, résultat obtenu, diagnostic éventuel, correction apportée.
 
 ## 7. Gestion automatique : RAII
 
@@ -189,10 +545,86 @@ std::cout << *nombre << '\n';
 
 L'objet pointé est détruit automatiquement avec son propriétaire. Ne pas appeler `delete` sur cette allocation. `unique_ptr` n'est pas copiable ; le transfert de propriété existe, mais dépasse les objectifs obligatoires du jour.
 
+### 7.1 Pourquoi un objet propriétaire change le problème
+
+Un pointeur brut ne libère pas sa cible à sa destruction. Un objet propriétaire comme `std::unique_ptr` a, lui, un destructeur qui effectue le nettoyage. Une sortie de bloc normale, un `return` ou une exception qui déroule la pile déclenche la destruction des propriétaires locaux construits.
+
+Ce mécanisme ne repose pas sur l'appel manuel d'un « ramasse-miettes ». La fin de vie des propriétaires locaux ordinaires dépend de la sortie de leur portée.
+
+### 7.2 `std::vector` pas à pas
+
+```cpp
+#include <iostream>
+#include <vector>
+
+int main() {
+    std::vector<int> valeurs(3, 0);
+    valeurs[0] = 10;
+    valeurs[1] = 20;
+    valeurs[2] = 30;
+    valeurs.push_back(40);
+
+    std::cout << "Taille : " << valeurs.size() << '\n';
+    for (int valeur : valeurs) {
+        std::cout << valeur << ' ';
+    }
+    std::cout << '\n';
+    return 0;
+}
+```
+
+Résultat : taille `4`, puis `10 20 30 40`. À la fin de `main`, le vecteur détruit ses éléments et libère le stockage qu'il possède.
+
+- `size()` : nombre d'éléments réellement présents.
+- `capacity()` : nombre d'éléments pouvant tenir dans le stockage actuel sans réallocation.
+- `push_back()` : ajoute un élément, en augmentant la taille.
+- `reserve()` : demande une capacité suffisante, sans ajouter d'éléments.
+- `resize()` : change le nombre d'éléments.
+
+Ne pas écrire `valeurs[3] = 40` sur un vecteur de taille 3, même s'il a une capacité supérieure. Seuls les indices strictement inférieurs à `size()` sont utilisables avec `[]`.
+
+La stratégie précise d'augmentation de capacité dépend de l'implémentation. Ne pas supposer que le vecteur double toujours sa capacité. Pour transmettre un vecteur en lecture, utiliser `const std::vector<int>&` ; pour le modifier, `std::vector<int>&`.
+
+### 7.3 `std::unique_ptr` pas à pas
+
+```cpp
+#include <iostream>
+#include <memory>
+
+void exemple(bool abandonner) {
+    auto nombre = std::make_unique<int>(42);
+    if (abandonner) {
+        return; // Liberation automatique.
+    }
+    std::cout << *nombre << '\n';
+} // Liberation automatique si la fonction arrive ici.
+
+int main() {
+    exemple(false);
+    exemple(true);
+    return 0;
+}
+```
+
+Résultat : un seul affichage de `42`, et les deux allocations sont prises en charge par leurs propriétaires. `auto` laisse le compilateur déduire ici le type `std::unique_ptr<int>`.
+
+`nombre.get()` fournit un pointeur brut observateur. Il ne transfère pas la propriété et ne prolonge pas la vie de l'entier. Ne pas appeler `delete` sur ce pointeur. Copier le propriétaire est interdit ; un transfert explicite peut utiliser `std::move`, notion facultative aujourd'hui.
+
+### 7.4 Quel outil choisir ?
+
+| Besoin | Choix habituel |
+|---|---|
+| Une simple valeur locale | Variable ordinaire |
+| Tableau local intégré de taille constante pour l'apprentissage | `int valeurs[5]` |
+| Tableau dont la taille est connue à l'exécution ou évolue | `std::vector` |
+| Propriété exclusive d'un objet dynamique | `std::unique_ptr` |
+| Observer un objet existant sans le posséder | Référence ou pointeur, selon le contrat |
+
+Les allocations manuelles de ce cours servent à comprendre les mécanismes et les erreurs. Dans les programmes courants, exprimer la propriété avec les outils automatiques réduit les chemins de nettoyage à vérifier.
+
 ## Exercices pratiques
 
 ### Exercice 1 — Durées de vie
-
 Sur papier, annoter ces situations :
 
 1. Une variable locale dans `main`.
@@ -211,7 +643,7 @@ Créer temporairement un second pointeur vers cet entier pour observer que les d
 
 **Test :** `21` donne `42`. **Réussite :** une allocation, une libération, aucune utilisation après libération.
 
-### Exercice 3 — Notes en quantité variable
+### Exercice 3 — Notes en quantité variable 
 
 1. Demander un nombre de notes entre 1 et 100.
 2. Allouer un tableau dynamique de `double`.
@@ -232,7 +664,7 @@ delete valeurs;
 std::cout << valeurs[0];
 ```
 
-Identifier trois erreurs et proposer une correction : borne valide, `delete[]`, absence d'accès après destruction. Compiler la correction avec les outils de diagnostic si disponibles.
+Identifier trois erreurs et proposer une correction : borne valide, `delete[]`, absence d'accès après destruction. Générer la correction et la tester avec AddressSanitizer. Utiliser ensuite une exécution Debug séparée avec le rapport CRT pour contrôler les fuites.
 
 Réécrire ensuite l'exercice 3 avec `std::vector<double>`. Expliquer quelles responsabilités disparaissent et lesquelles restent : validation des saisies et respect des indices restent nécessaires.
 
@@ -253,3 +685,28 @@ Créer une collection d'entiers avec `int* donnees`, `int taille` et `int capaci
 **Bonus :** ajouter la suppression du dernier élément, sans réduction de capacité. Refuser cette opération sur une collection vide. Expliquer pourquoi doubler la capacité évite de réallouer à chaque ajout.
 
 **Critères :** distinguer taille et capacité, copier seulement les éléments utilisés, ne jamais perdre une allocation, ne pas conserver d'adresse vers un ancien tableau.
+
+### Aide au challenge : taille et capacité
+
+Au départ, deux emplacements sont alloués, mais aucun ne contient encore un élément de la collection : `taille = 0`, `capacite = 2`.
+
+| Après l'ajout de… | Taille | Capacité attendue dans ce challenge |
+|---|---:|---:|
+| 1 | 1 | 2 |
+| 2 | 2 | 2 |
+| 3 | 3 | 4 |
+| 5 | 5 | 8 |
+| 9 | 9 | 16 |
+| 10 | 10 | 16 |
+
+Conserver l'invariant `0 <= taille <= capacite`. Avant d'écrire à l'indice `taille`, s'assurer que `taille < capacite`. Écrire la nouvelle valeur puis incrémenter la taille.
+
+Quand le tableau est plein : préparer la nouvelle allocation, copier les éléments utilisés, libérer l'ancienne allocation, remplacer l'adresse et mettre à jour la capacité. Avec des entiers, la copie elle-même ne lève pas d'exception ; si l'allocation échoue, ne pas avoir déjà détruit l'ancienne collection.
+
+Ne pas afficher les emplacements entre `taille` et `capacite - 1` comme des éléments de la collection. Pour supprimer le dernier élément de cette collection d'entiers, décrémenter la taille suffit si elle est positive ; l'ancien emplacement n'est alors plus un élément utilisé.
+
+## Documentation Microsoft
+
+- [AddressSanitizer avec MSVC](https://learn.microsoft.com/fr-fr/cpp/sanitizers/asan?view=msvc-170)
+- [Options incompatibles avec AddressSanitizer](https://learn.microsoft.com/en-us/cpp/sanitizers/asan-known-issues?view=msvc-170)
+- [Détection des fuites avec la CRT](https://learn.microsoft.com/fr-fr/cpp/c-runtime-library/find-memory-leaks-using-the-crt-library?view=msvc-170)
